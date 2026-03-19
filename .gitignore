@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project specific
+FINAL_MSA_FILTERED_EXPANDED*.csv
+FINAL_MSA_FILTERED_EXPANDED*.xlsx
+DATA_SUMMARY.txt
+processing.log
+
+# Data directories (don't commit large data files)
+MSA_STORENAME/*.csv
+MSA_STORENAME/*.xlsx
+BASE\ DATA/*.csv
+LIST/*.csv
+
+# OS
+.DS_Store
+Thumbs.db
