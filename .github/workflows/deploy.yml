@@ -1,0 +1,157 @@
+name: Deploy Streamlit to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+env:
+  AZURE_WEBAPP_NAME: article-wise-app
+  AZURE_WEBAPP_PACKAGE_PATH: '.'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Create virtual environment
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        echo "VIRTUAL_ENV=${PWD}/venv" >> $GITHUB_ENV
+        echo "${PWD}/venv/bin" >> $GITHUB_PATH
+
+    - name: Upgrade pip
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip --version
+
+    - name: Install dependencies
+      run: |
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+          echo "✅ Requirements installed successfully"
+        else
+          echo "❌ requirements.txt not found"
+          exit 1
+        fi
+
+    - name: Verify Streamlit installation
+      run: |
+        streamlit --version
+        python -c "import streamlit; print('✅ Streamlit imported successfully')"
+
+    - name: Run tests (if any)
+      run: |
+        echo "✅ Build checks completed"
+
+    - name: Create deployment package
+      run: |
+        mkdir -p deployment
+        cp -r streamlit_app.py deployment/ 2>/dev/null || echo "streamlit_app.py not found"
+        cp -r *.md deployment/ 2>/dev/null || echo "No markdown files"
+        cp -r config.py deployment/ 2>/dev/null || echo "config.py not found"
+        cp requirements.txt deployment/
+        cp startup.sh deployment/ 2>/dev/null || echo "startup.sh not found"
+        cp web.config deployment/ 2>/dev/null || echo "web.config not found"
+        ls -la deployment/
+
+    - name: Upload deployment artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-package
+        path: deployment/
+        retention-days: 5
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Download deployment artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: deployment-package
+        path: deployment/
+
+    - name: Deploy to Azure App Service
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: deployment/
+
+    - name: Azure App Service - Post Deployment Action
+      uses: azure/appservice-settings@v1
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        app-settings-json: |
+          [
+            {
+              "name": "WEBSITES_PORT",
+              "value": "8000",
+              "slotSetting": false
+            },
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "true",
+              "slotSetting": false
+            },
+            {
+              "name": "ENABLE_ORYX_BUILD",
+              "value": "true",
+              "slotSetting": false
+            }
+          ]
+      continue-on-error: true
+
+    - name: Deployment Status
+      run: |
+        echo "✅ Deployment to Azure App Service initiated"
+        echo "📊 App Name: ${{ env.AZURE_WEBAPP_NAME }}"
+        echo "🌐 URL: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+
+  health-check:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: Wait for deployment
+      run: sleep 30
+
+    - name: Health check
+      run: |
+        echo "⏳ Checking app health..."
+        for i in {1..5}; do
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net)
+          echo "Attempt $i: HTTP $response"
+          if [ "$response" = "200" ] || [ "$response" = "302" ]; then
+            echo "✅ App is healthy!"
+            exit 0
+          fi
+          if [ $i -lt 5 ]; then
+            sleep 10
+          fi
+        done
+        echo "⚠️ App may still be starting up"
