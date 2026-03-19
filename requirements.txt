@@ -1,6 +1,17 @@
-pandas>=2.0.0
-numpy>=1.24.0
-openpyxl>=3.10.0
-xlrd>=2.0.0
-streamlit>=1.28.0
+# MSA Article Stock Analysis - Requirements
+# Compatible with Python 3.10+
+
+# Core Data Processing (Python 3.10 compatible)
+pandas>=2.0.0,<2.3.0
+numpy>=1.24.0,<2.0.0
+
+# Excel & File Handling
+openpyxl>=3.0.0,<3.1.6
+xlrd>=2.0.0,<3.0.0
+
+# Web Framework & UI
+streamlit>=1.28.0,<2.0.0
+
+# Utilities
+python-dotenv>=1.0.0,<2.0.0
 
